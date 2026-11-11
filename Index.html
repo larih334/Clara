@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Clara, João e os Animais</title>
+<link href="https://fonts.googleapis.com/css2?family=VT323&display=swap" rel="stylesheet">
+<style>
+html,body{margin:0;height:100%;background:#000;overflow:hidden}
+#c{display:block;margin:0 auto;width:min(100vw,calc(100vh*9/16));height:min(100vh,calc(100vw*16/9));image-rendering:pixelated}
+#start{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;color:#ffd166;font:56px VT323,monospace;background:#14121f;cursor:pointer;text-align:center}
+</style>
+</head>
+<body>
+<canvas id="c" width="1080" height="1920"></canvas>
+<div id="start">▶ Toque para começar</div>
+<script>
+const C=document.getElementById('c'),X=C.getContext('2d');
+const W=90,H=160,K=12;
+const L=document.createElement('canvas');L.width=W;L.height=H;const g=L.getContext('2d');
+const R=(x,y,w,h,c)=>{g.fillStyle=c;g.fillRect(Math.round(x),Math.round(y),w,h)};
+X.textBaseline='top';
+
+/* ===== SPRITES ===== */
+const CL=["..hhhhhh..",".hhhhhhhh.","hhhsssshhh","hhsssssshh","hhsesseshh","hhsssssshh","hhssmmsshh","hh.ssss.hh","hhyyyyyyhh","hyyyyyyyyh","syyyyyyyys","syyyyyyyys","s.yyyyyy.s","..bbbbbb..","..bbbbbb..","..bb..bb..","..bb..bb..","..bb..bb..","..bb..bb..","..ww..ww.."];
+const JO=["..cccccc..",".cccccccc.",".cccccccc.",".cjjjjjjc.","..jejjej..","..jjjjjj..","..JjmmjJ..","..JJJJJJ..",".llWWWWll.","lllWWWWlll","jllWWWWllj","jllWWWWllj","j.lWWWWl.j","..gggggg..","..gggggg..","..gg..gg..","..gg..gg..","..gg..gg..","..gg..gg..","..dd..dd.."];
+const CAT=[".........q.q","q........qqq","q.......qGeG",".q.....qGGpG","..qGGGGGGvGG","..GGGGGGGvv.","..GqGGGGqG..","..q.q...q.q."];
+const CATB=CAT.slice(0,6).concat(["..GGqGGGGq..","...qq....qq."]);
+const HEN=["......rr..",".....vvvr.",".....vevoo","v...vvvvr.","vvvvvvvvv.","vVVvvvvvv.",".vVVVvvvv.","..vvvvvv..","....o.o..."];
+const HENB=HEN.slice(0,8).concat(["...o...o.."]);
+const RAB=["......n.n","......nNn",".....nnnn","v..nnnnen","vnnnnnnnp",".nnnnnnn.",".nNnnnNn.",".n.....n."];
+const RABB=RAB.slice(0,7).concat(["..n...n.."]);
+const PJ={c:'#1c1410',j:'#a8714a',e:'#111111',m:'#6a2a20',J:'#2a1d15',l:'#9fc3e0',W:'#f4f4f4',g:'#5a6b80',d:'#222222'};
+const legsB=a=>{const l=a[15][2],f=a[19][2];return a.slice(0,15).concat(Array(4).fill('...'+l+l+l+l+'...'),['...'+f+f+f+f+'...'])};
+function build(rows,pal){const h=rows.length,w=rows[0].length,c=document.createElement('canvas');c.width=w+2;c.height=h+2;const x=c.getContext('2d');
+ const f=(i,j)=>rows[j]&&rows[j][i]&&rows[j][i]!=='.';
+ for(let j=-1;j<=h;j++)for(let i=-1;i<=w;i++){if(f(i,j)){x.fillStyle=pal[rows[j][i]];x.fillRect(i+1,j+1,1,1)}else if(f(i-1,j)||f(i+1,j)||f(i,j-1)||f(i,j+1)){x.fillStyle='#231a2b';x.fillRect(i+1,j+1,1,1)}}
+ return c}
+const SPR={};
+function mk(n,a,p,b){SPR[n]={A:build(a,p),B:build(b,p),w:a[0].length+2,h:a.length+2}}
+mk('clara',CL,{h:'#6b3e1f',s:'#c98a5e',e:'#1a1a1a',m:'#a8443a',y:'#f2c230',b:'#3d5fa8',w:'#f0f0f0'},legsB(CL));
+mk('joao',JO,PJ,legsB(JO));
+mk('func',JO,{...PJ,c:'#6b4a2a',j:'#e0ac80',J:'#e0ac80',l:'#3f8f4f',W:'#57b06a'},legsB(JO));
+mk('entr',JO,{...PJ,c:'#c0392b',j:'#8a5a3a',J:'#8a5a3a',l:'#e67e22',W:'#f39c3a',g:'#4a4a4a'},legsB(JO));
+mk('cat',CAT,{q:'#45454d',G:'#8a8a92',e:'#3fae5a',p:'#f08a9a',v:'#f2f2f2'},CATB);
+mk('hen',HEN,{r:'#e03a3a',v:'#fbfbf5',e:'#111111',o:'#f39c2b',V:'#e8d6b0'},HENB);
+mk('rabbit',RAB,{n:'#b8865a',N:'#e8b0a0',e:'#111111',p:'#e88a9a',v:'#ffffff'},RABB);
+
+/* ===== CENÁRIOS ===== */
+function cloud(x,y){R(x,y+3,20,5,'#fff');R(x+4,y,10,4,'#fff');R(x,y+7,20,1,'#b8b8c8')}
+function pine(x,y){R(x-2,y+28,4,40,'#3a2418');for(let i=0;i<7;i++){const w=4+i*3;R(x-w/2,y+i*4,w,4,i%2?'#2e9e4a':'#1f7a3a');R(x-w/2,y+i*4+3,w,1,'#145a28')}}
+function house(x,gy){R(x,gy-18,14,18,'#a9a9b0');R(x+14,gy-18,12,18,'#f4f4f4');
+ R(x+2,gy-14,3,1,'#7a7a82');R(x+8,gy-10,3,1,'#7a7a82');R(x+4,gy-5,3,1,'#7a7a82');R(x+9,gy-16,3,1,'#7a7a82');
+ R(x-2,gy-22,30,4,'#d9772b');R(x+1,gy-25,24,3,'#d9772b');R(x+4,gy-27,18,2,'#c8652a');R(x-2,gy-19,30,1,'#a84e1e');
+ R(x+20,gy-10,5,10,'#6b4423');R(x+15,gy-12,4,4,'#3a2a1a');R(x+16,gy-11,2,2,'#a8dcf0')}
+function fence(x0,y,w,h){for(let x=x0;x<x0+w;x+=6){R(x,y,2,h,'#e9d3a0');R(x+2,y,1,h,'#b89a62')}R(x0,y+3,w,2,'#d9bd84');R(x0,y+h-5,w,2,'#d9bd84')}
+function janela(o){
+ R(0,0,W,118,'#e8836b');
+ for(let r=0;r<28;r++)for(let k=0;k<11;k++){if(((r*7+k*13)%5)<2)R(k*9+(r%2?4:0),8+r*4,6,2,'#cf6a52')}
+ R(0,0,W,4,'#f4a58e');R(0,4,W,2,'#c25a44');
+ R(0,112,W,6,'#9a9aa8');R(0,112,W,1,'#c8c8d0');R(0,118,W,H-118,'#1c1e33');
+ if(o.time==='night'){g.fillStyle='rgba(15,20,60,.6)';g.fillRect(0,0,W,118)}
+ R(7,25,76,76,'#3d3d6b');
+ R(10,28,70,70,o.time==='night'?'#f2c46a':'#fde9b0');
+ for(let i=0;i<4;i++)R(10,28+i*2,70,1,'#f0b93a');R(10,35,70,1,'#c98e28');
+ R(16,44,12,9,'#3d3d6b');R(17,45,10,7,'#7ec8a0');R(18,49,4,2,'#3c8c5a');
+ R(60,42,10,12,'#3d3d6b');R(61,43,8,10,'#f7a8b8');R(63,46,1,1,'#e0405a');R(66,46,1,1,'#e0405a');R(63,47,4,2,'#e0405a');R(64,49,2,1,'#e0405a');
+ R(70,60,6,4,'#f7e27a');R(72,64,2,22,'#555');R(70,86,6,2,'#555');
+ R(10,90,70,8,'#b97a4a');R(10,90,70,1,'#8a5530');
+ if(o.sofa){R(14,72,30,13,'#7d63a8');R(14,72,30,1,'#9a80c4')}
+}
+function janelaFg(){R(5,98,80,4,'#5a5a8a');R(5,98,80,1,'#7a7aaa');R(68,92,6,6,'#d9772b');R(69,86,1,6,'#2e9e4a');R(71,85,1,7,'#2e9e4a');R(73,87,1,5,'#2e9e4a')}
+function sofaFront(){R(12,84,34,7,'#8a70b8');R(12,84,34,1,'#a68ad0');R(10,80,4,11,'#6a5294');R(44,80,4,11,'#6a5294')}
+function quintal(){
+ R(0,0,W,76,st.sky||'#7ec8f0');cloud(52,8);cloud(8,4);pine(80,34);fence(34,62,56,14);
+ R(0,16,36,60,'#d6d0c2');[[3,22],[12,48],[6,60],[28,30],[16,68],[30,46]].forEach(([x,y])=>R(x,y,4,1,'#a8a294'));
+ R(0,13,38,4,'#6a5a4c');R(0,17,36,1,'#4a3e34');
+ R(3,27,14,14,'#3d3d6b');R(4,28,12,12,'#a8dcf0');R(9,28,1,12,'#3d3d6b');R(4,33,12,1,'#3d3d6b');
+ R(19,51,13,25,'#3d2a1a');R(20,52,11,24,'#8a5530');R(29,64,1,2,'#f2c230');
+ R(0,76,W,36,'#4caf50');
+ for(let j=0;j<6;j++)for(let i=0;i<15;i++){const v=(i*7+j*11)%6;if(v==0)R(i*6,76+j*6,6,6,'#5cc95c');else if(v==3)R(i*6,76+j*6,6,6,'#43a047')}
+ R(0,76,W,1,'#2e7d32');R(0,112,W,6,'#a0a0a8');R(0,112,W,1,'#d0d0d8');R(0,118,W,H-118,'#1c1e33');
+}
+function frontFence(){fence(0,100,56,12);fence(74,100,16,12);R(54,98,2,14,'#7a5a32');R(72,98,2,14,'#7a5a32');
+ if(!st.gate){for(let x=56;x<72;x+=3)R(x,101,2,11,'#c9a265');R(56,103,16,2,'#a8844a');R(56,108,16,2,'#a8844a')}
+ else{R(74,90,3,22,'#c9a265');R(74,90,1,22,'#a8844a')}}
+function rua(o){
+ R(0,0,W,118,st.sky||'#7ec8f0');cloud(50,10);
+ const v=o.v||0;
+ if(v==0){pine(14,58);house(44,98)}
+ if(v==1){house(4,98);pine(62,58);pine(80,64)}
+ if(v==2){pine(8,58);house(56,98)}
+ R(0,98,W,4,'#3fc040');for(let i=0;i<15;i++)R(i*6,98,6,2,i%2?'#5be05b':'#2fa83a');
+ for(let j=0;j<3;j++)for(let i=0;i<15;i++){const q=(i*5+j*3)%4;R(i*6,102+j*5,6,5,q==0?'#6a3e1c':q==1?'#8a5a2a':'#7a4a22')}
+ R(0,117,W,1,'#4a2a10');R(0,118,W,H-118,'#1c1e33');
+ if(o.dusk){g.fillStyle='rgba(40,30,100,.3)';g.fillRect(0,0,W,118)}
+}
+function muda(){R(40,94,2,4,'#5a3a1a');R(34,98,14,1,'#4a2a10');R(33,85,16,10,'#2a8a36');R(35,83,12,3,'#2a8a36');[[35,86],[40,84],[44,88],[37,90],[42,91]].forEach(([x,y])=>R(x,y,2,2,'#4cc95a'))}
+
+/* ===== PERSONAGENS ===== */
+function actor(a,em){
+ const S=SPR[a.s],fr=(a.walking&&Math.floor(T*6)%2)?S.B:S.A;
+ const left=Math.round(a.x-S.w/2),top=Math.round(a.y-S.h);
+ if(a.dir<0){g.save();g.translate(left+S.w,top);g.scale(-1,1);g.drawImage(fr,0,0);g.restore()}else g.drawImage(fr,left,top);
+ if(a.cry)for(const c of [4,7]){const xx=a.dir<0?left+S.w-1-c:left+c;R(xx,top+6+Math.floor(T*6+c)%4,1,1,'#5ec8ff')}
+ if(a.phone){const xx=a.dir<0?left:left+S.w-3;R(xx,top+5,2,4,'#222');R(xx,top+6,1,1,'#7fd3ff')}
+ if(a.carry){g.drawImage(SPR.hen.A,left-5,top+8);g.drawImage(SPR.cat.A,left+2,top+11)}
+ if(a.box){R(left-1,top+8,14,10,'#231a2b');R(left,top+9,12,8,'#c8955a');R(left,top+12,12,1,'#9a6a3a')}
+ if(a.emote&&T<a.emote.u)em.push({x:a.x,y:top,e:a.emote.e});
+}
+
+/* ===== TEXTO / INTERFACE ===== */
+const F=s=>s+'px VT323, monospace';
+const COL={Clara:'#ff8fc3','João':'#7fd0ff','Funcionário':'#8ee89a'};
+function box(x,y,w,h,fill,border){X.fillStyle=border;X.fillRect(x-8,y-8,w+16,h+16);X.fillStyle=fill;X.fillRect(x,y,w,h)}
+function wrap(t,mw){const out=[];t.split('\n').forEach(par=>{let line='';par.split(' ').forEach(wd=>{const tt=line?line+' '+wd:wd;if(X.measureText(tt).width>mw&&line){out.push(line);line=wd}else line=tt});out.push(line)});return out}
+function lerpC(a,b,p){const A=parseInt(a.slice(1),16),B=parseInt(b.slice(1),16);return 'rgb('+[16,8,0].map(s=>Math.round(((A>>s)&255)*(1-p)+((B>>s)&255)*p))+')'}
+
+/* ===== MOTOR ===== */
+let st={A:{},tw:[]},T=0,t0=0,i=0;
+const steps=[],marks={};
+const S=(d,s,u)=>steps.push({d,s,u});
+const block=n=>{marks[n]=steps.length};
+const scene=(n,o={})=>S(0,()=>{st.scene=n;st.o=o;st.A={};st.tw=[];st.dialog=null;st.phone=null;st.clockTxt=null;st.sky=o.sky||null;st.gate=!!o.gate});
+const put=(id,s,x,y,dir=1,ex={})=>S(0,()=>{st.A[id]={s,x,y,dir,...ex}});
+const A=id=>st.A[id];
+const set=f=>S(0,f);
+const go=(id,x,y,d,blk=true)=>S(blk?d:0,()=>{const a=A(id),xx=x==null?a.x:x,yy=y==null?a.y:y;if(xx!==a.x)a.dir=xx>a.x?1:-1;st.tw.push({a,x0:a.x,y0:a.y,x1:xx,y1:yy,t:T,d})});
+const wait=d=>S(d);
+const say=(n,t,d)=>S(d,()=>{st.dialog={n,t,t0:T}});
+const narr=(t,d)=>say('',t,d);
+const hush=()=>set(()=>st.dialog=null);
+const emo=(id,e)=>set(()=>{A(id).emote={e,u:T+2.5}});
+const prop=(id,k,v)=>set(()=>{A(id)[k]=v});
+const face=(id,d)=>set(()=>{A(id).dir=d});
+const card=(t,d)=>S(d,()=>{st.card=t},p=>{if(p>=1)st.card=null});
+const tween=(d,f)=>S(d,null,f);
+const phone=(n,d)=>S(d,()=>{st.phone=n},p=>{if(p>=1)st.phone=null});
+
+/* ===== HISTÓRIA ===== */
+// BLOCO 1 — A preocupação de Clara
+block(1);
+card('Clara, João\ne os Animais',4);
+scene('janela',{time:'day'});
+put('gato','cat',58,93,-1);put('gali','hen',70,93,-1);put('clara','clara',20,93,1);
+wait(1);
+go('clara',42,null,2);
+say('Clara','Hoje o dia vai ser corrido... compromisso atrás de compromisso!',4.5);
+go('clara',24,null,2);go('clara',44,null,2);
+emo('clara','!');say('Clara','Vou ficar fora o dia inteiro!',3);
+face('clara',1);
+say('Clara','E vocês dois... vão ficar sozinhos aqui o dia todo?',4.5);
+emo('gato','?');emo('gali','?');wait(2);
+emo('clara','...');say('Clara (pensando)','Hmm... e agora? O que eu faço?',3.5);
+scene('quintal',{sepia:true});
+put('joao','joao',30,84,1);put('coelho','rabbit',50,92,1);
+say('Clara (pensando)','O João levou o coelho dele pro trabalho...',4);
+go('coelho',68,90,2.5,false);
+say('Clara (pensando)','Lá tem um quintal gramado e cercado!',4);
+go('coelho',44,96,2.5,false);wait(1);
+scene('janela',{time:'day'});
+put('gato','cat',58,93,-1);put('gali','hen',70,93,-1);put('clara','clara',44,93,1);
+emo('clara','!');say('Clara','Já sei!',2);
+prop('clara','phone',true);
+say('Clara','Amor, você consegue cuidar dos meus bichinhos hoje?',4.5);
+say('João (no telefone)','Ah, Clara... não sei.',3.5);
+go('clara',26,null,2,false);
+say('Clara','Por favor! Vou ficar fora o dia inteiro e não tenho com quem deixar...',5);
+say('João (no telefone)','Hmm...',2.5);
+go('clara',46,null,2,false);
+say('Clara','Por favorzinho, amor! É só hoje!',3.5);
+say('João (no telefone)','Tá bom, pode trazer.',3.5);
+emo('clara','♥');say('Clara','Ufa! Obrigada, amor!',3);
+prop('clara','phone',false);hush();
+go('clara',50,null,1.5);emo('gato','♥');wait(2);
+
+// BLOCO 2 — A entrega dos animais
+block(2);
+card('Mais tarde,\nno trabalho do João...',3);
+scene('quintal');
+put('joao','joao',48,86,-1);
+put('clara','clara',25,79,1,{carry:true});
+go('clara',34,86,2);
+say('Clara','Oi, amor! Trouxe eles.',3);
+emo('joao','...');say('João','Oi.',2);
+prop('clara','carry',false);
+put('gato','cat',42,95,1);put('gali','hen',26,96,-1);
+say('Clara','Fica bonzinho, viu, gatinho?',3.5);
+face('clara',-1);emo('clara','♥');
+say('Clara','E você, mocinha, se comporta!',3.5);
+face('clara',1);
+say('Clara','Por favor, toma bastante cuidado com eles.',4);
+emo('clara','!');
+say('Clara','E não deixa o portão aberto de jeito nenhum, tá?',4.5);
+say('João','Pode deixar.',3);
+say('Clara','Tchau, bichinhos! Volto mais tarde!',3.5);
+hush();
+go('clara',25,79,2.5);prop('clara','hide',true);
+go('joao',25,79,2.5);prop('joao','hide',true);
+go('gato',52,92,3,false);go('gali',20,98,3);
+go('gato',44,98,3,false);go('gali',36,92,3);
+emo('gato','♥');go('gato',60,90,3,false);go('gali',44,96,3);
+wait(1);
+
+// BLOCO 3 — O portão aberto
+block(3);
+scene('quintal');
+put('gato','cat',58,92,1);put('gali','hen',42,96,1);
+put('joao','joao',31,82,1);
+wait(2);
+put('func','func',25,79,1);
+go('func',42,84,2);face('func',-1);
+say('Funcionário','João, chegou uma encomenda grande. Posso abrir o portão?',5);
+say('João','Pode.',2.5);
+say('Funcionário','Mas os animais estão lá fora. Tem problema deixar o portão aberto?',5.5);
+emo('joao','...');say('João','Não, deixa eles aí.',3.5);
+emo('gato','?');hush();
+go('func',64,100,3);
+set(()=>st.gate=true);emo('func','!');wait(1);
+put('entr','entr',96,117,-1,{box:true});
+go('entr',64,117,2.5);go('entr',64,96,2);
+go('func',50,88,1.5,false);go('entr',25,79,4);prop('entr','hide',true);
+go('func',25,79,3);prop('func','hide',true);
+say('João','Bom... de volta ao trabalho.',3);
+go('joao',25,79,1.5);prop('joao','hide',true);
+narr('(E o portão ficou aberto...)',4);
+emo('gato','!');go('gato',64,96,3,false);go('gali',60,98,3.5);
+go('gato',64,117,2,false);go('gali',66,117,2.3);
+go('gato',100,117,3,false);go('gali',100,117,3.5);
+narr('(...e ninguém percebeu.)',4);
+
+// BLOCO 4 — Clara volta
+block(4);
+scene('quintal',{gate:true});
+say('','Algumas horas depois...',0);
+tween(7,p=>{const h=10+Math.floor(p*8);st.clockTxt=(h<10?'0':'')+h+':00';st.sky=lerpC('#7ec8f0','#f39a5e',p)});
+put('clara','clara',25,79,1);
+emo('clara','♥');say('Clara','Cheguei! Cadê meus bebês?',3);
+set(()=>st.clockTxt=null);hush();
+go('clara',46,92,2.5);
+face('clara',-1);wait(1);face('clara',1);wait(1);
+emo('clara','?');go('clara',62,98,2);
+emo('clara','!');wait(1.5);
+put('joao','joao',25,79,1);
+face('clara',-1);
+say('Clara','João, cadê meus bichinhos?',3.5);
+say('João','Não sei. Eles estavam aí até agora há pouco.',4.5);
+emo('clara','!');say('Clara','O portão tá aberto!',3);
+prop('clara','cry',true);
+say('Clara','Como você conseguiu deixar isso acontecer?',4.5);
+emo('joao','...');say('João','...',2.5);
+say('Clara','Por que quando são as minhas coisas você não se importa?',5);
+say('Clara','Só se importa com as suas coisas?',4);
+hush();
+go('clara',64,117,2);go('clara',100,117,2.5,false);
+emo('joao','?');
+narr('(João ficou ali, sem saber como reagir.)',4.5);
+
+// BLOCO 5 — A procura e o reencontro
+block(5);
+scene('rua',{v:0,sky:'#f39a5e'});
+put('clara','clara',-6,98,1,{cry:true});
+go('clara',30,null,3);
+say('Clara','Gatinho! Galinha! Cadê vocês?',4);
+go('clara',60,null,2.5,false);
+phone(1,3.5);
+go('clara',100,null,2.5);
+scene('rua',{v:1,sky:'#e8845a',dusk:true});
+put('clara','clara',-6,98,1,{cry:true});
+go('clara',40,null,3,false);
+say('Clara','Psiu, psiu, psiu! Có-có-có!',4);
+phone(3,3.5);
+say('Clara (pensando)','Agora não, João...',3);
+emo('clara','?');face('clara',-1);wait(1.2);face('clara',1);
+hush();go('clara',100,null,3);
+scene('rua',{v:2,sky:'#c96a6a',dusk:true});
+put('gato','cat',39,98,1);put('gali','hen',45,98,-1);
+put('clara','clara',-6,98,1,{cry:true});
+go('clara',20,null,2.5);
+wait(1);emo('gato','!');wait(1);
+emo('clara','!');say('Clara','Vocês estão aqui!!',3);
+go('clara',34,null,1.2);
+prop('gato','hide',true);prop('gali','hide',true);prop('clara','carry',true);
+emo('clara','♥');say('Clara','Graças a Deus... vocês estão bem.',4.5);
+say('Clara','Vamos pra casa.',3);hush();
+go('clara',100,null,4,false);phone(5,4);
+
+// BLOCO 6 — O arrependimento que não chega
+block(6);
+scene('janela',{time:'night',sofa:true});
+put('clara','clara',-2,93,1,{carry:true,cry:true});
+go('clara',52,null,3);
+prop('clara','carry',false);put('gato','cat',46,93,-1);put('gali','hen',62,93,1);
+prop('clara','cry',false);
+emo('clara','♥');say('Clara','Pronto. Agora vocês estão seguros.',4);
+phone(6,3);
+prop('clara','phone',true);
+say('Clara (pensando)','Ele tá ligando...',3);
+say('Clara (pensando)','Será que ele vem até aqui pedir desculpas?',4.5);
+say('Clara (pensando)','Talvez traga uma flor... ou só apareça pra me dar um abraço.',5);
+hush();
+go('clara',29,90,2.5);
+say('','O tempo foi passando...',0);
+tween(6,p=>{const m=20*60+Math.floor(p*180);st.clockTxt=Math.floor(m/60)+':'+String(m%60).padStart(2,'0')});
+phone(9,3);
+narr('Mas ele só ligou. Não veio, não trouxe nada, não fez nada.',5.5);
+emo('clara','...');prop('clara','cry',true);
+go('gato',40,93,2,false);go('gali',50,93,2);
+hush();face('clara',1);
+wait(6);
+S(1e9,()=>{st.card='FIM'});
+
+/* ===== DESENHO ===== */
+function draw(){
+ g.clearRect(0,0,W,H);
+ const o=st.o||{},em=[];
+ const acts=Object.values(st.A).filter(a=>!a.hide).sort((a,b)=>a.y-b.y);
+ if(st.scene==='janela'){janela(o);g.save();g.beginPath();g.rect(10,28,70,70);g.clip();acts.forEach(a=>actor(a,em));if(o.sofa)sofaFront();g.restore();janelaFg()}
+ else if(st.scene==='quintal'){quintal();acts.filter(a=>a.y<=103).forEach(a=>actor(a,em));frontFence();acts.filter(a=>a.y>103).forEach(a=>actor(a,em))}
+ else if(st.scene==='rua'){rua(o);acts.forEach(a=>actor(a,em));if(o.v===2)muda()}
+ if(o.sepia){g.fillStyle='rgba(170,120,60,.45)';g.fillRect(0,0,W,118)}
+ X.imageSmoothingEnabled=false;X.fillStyle='#000';X.fillRect(0,0,1080,1920);X.drawImage(L,0,0,1080,1920);
+ if(o.sepia){X.font=F(60);X.fillStyle='#fff3d6';X.textAlign='center';X.fillText('~ lembrança ~',540,40);X.textAlign='left'}
+ em.forEach(e=>{const x=e.x*K,y=e.y*K;X.font=F(64);const w=Math.max(70,X.measureText(e.e).width+30);box(x-w/2,y-84,w,70,'#fff','#231a2b');X.fillStyle=e.e==='♥'?'#e0405a':'#231a2b';X.textAlign='center';X.fillText(e.e,x,y-80);X.textAlign='left'});
+ if(st.clockTxt){box(60,60,260,90,'#1b1f3b','#f4f1e8');X.font=F(80);X.fillStyle='#ffd166';X.fillText('⏰ '+st.clockTxt,80,66)}
+ if(st.dialog){const d=st.dialog;let rem=Math.floor((T-d.t0)*35);
+  box(60,1440,960,400,'#1b1f3b','#f4f1e8');
+  if(d.n){X.font=F(60);const tw=X.measureText(d.n).width;box(90,1360,tw+40,60,COL[d.n.split(' ')[0]]||'#ffd166','#f4f1e8');X.fillStyle='#1b1f3b';X.fillText(d.n,110,1362)}
+  X.font=F(72);X.fillStyle=d.n?'#ffffff':'#ffd166';
+  wrap(d.t,900).forEach((l,k)=>{if(rem>0)X.fillText(l.slice(0,rem),90,1470+k*76);rem-=l.length+1})}
+ if(st.phone!=null){const py=330;X.fillStyle='#231a2b';X.fillRect(278,py-12,524,924);X.fillStyle='#3a3a4a';X.fillRect(290,py,500,900);
+  X.fillStyle='#1e2a44';X.fillRect(314,py+60,452,760);X.textAlign='center';
+  X.fillStyle='#fff';X.font=F(110);X.fillText('João',540,py+150);
+  X.font=F(64);X.fillStyle=Math.floor(T*2)%2?'#9fd3ff':'#ffffff';X.fillText('chamando...',540,py+290);
+  X.fillStyle='#e0405a';X.fillRect(380,py+520,110,110);X.fillStyle='#3fbf5a';X.fillRect(590,py+520,110,110);
+  X.fillStyle='#fff';X.font=F(90);X.fillText('✕',435,py+528);X.fillText('✆',645,py+528);
+  X.fillStyle='#ffd166';X.font=F(56);X.fillText(st.phone+(st.phone>1?' chamadas perdidas':' chamada perdida'),540,py+700);X.textAlign='left'}
+ if(st.card){X.fillStyle='#14121f';X.fillRect(0,0,1080,1920);X.fillStyle='#ffd166';X.font=F(120);X.textAlign='center';const ls=st.card.split('\n');ls.forEach((l,k)=>X.fillText(l,540,880+k*130-(ls.length-1)*65));X.textAlign='left'}
+}
+function tick(ts){
+ T=(ts-t0)/1000;
+ while(i<steps.length){const s=steps[i];if(!s.on){s.on=1;s.t=T;s.s&&s.s()}const p=s.d?Math.min(1,(T-s.t)/s.d):1;s.u&&s.u(p);if(p<1)break;i++}
+ st.tw=st.tw.filter(w=>{const p=Math.min(1,(T-w.t)/w.d);w.a.x=w.x0+(w.x1-w.x0)*p;w.a.y=w.y0+(w.y1-w.y0)*p;w.a.walking=p<1;return p<1});
+ draw();requestAnimationFrame(tick);
+}
+const q=new URLSearchParams(location.search);
+document.getElementById('start').onclick=async()=>{
+ try{await document.fonts.load('64px VT323')}catch(e){}
+ document.getElementById('start').remove();
+ i=marks[q.get('bloco')]||0;
+ requestAnimationFrame(ts=>{t0=ts;tick(ts)});
+};
+</script>
+</body>
+</html>
